@@ -107,8 +107,8 @@ server <- function(input, output, session) {
             num_ind_birth = c(0, 2, 2, 3, 3, 3, 2, 0, 0)
         } else if (input$name == "Spotted froggit") {
             age_stage = c(0,1,2,3,4, 5)
-            num_ind = c(10500, 500, 200, 150, 120, 98)
-            num_ind_birth = c(0, 200, 200, 100, 0, 0)
+            num_ind = c(700, 55, 25, 15, 10, 3)
+            num_ind_birth = c(0, 10, 10, 5, 0, 0)
         } else {
             age_stage = c(0,1,2,3,4,5, 6, 7, 8, 9, 10)
             num_ind = c(120, 115, 111, 109, 105, 95, 90, 74, 52, 21, 2)
@@ -164,25 +164,28 @@ server <- function(input, output, session) {
 
     })
 
+    starting_pop <- reactive({
+        sum(data_generations()$starting_pop)
+    })
+
     data_pop_summary <- reactive({
         data_generations() %>%
             select(-num_ind_birth, -survivorship) %>%
-            pivot_longer(cols = c("starting_pop", starts_with("gen")), names_to = "gen") %>%
+            pivot_longer(cols = starts_with("gen"), names_to = "gen") %>%
             group_by(gen) %>%
             summarise(total_pop = sum(value)) %>%
             mutate(lambda = lead(total_pop, default = 0)/total_pop) %>%
-            arrange(total_pop) %>%
             column_to_rownames(var = "gen")
     })
 
-    # lambda <- reactive({
-    #     l = data_pop_summary() %>%
-    #         filter(row_number() == (n() - 1)) %>%
-    #         select(lambda) %>%
-    #         pull()
-    #
-    #     round(l, digits = 3)
-    # })
+    lambda <- reactive({
+        l = data_pop_summary() %>%
+            filter(row_number() == (n() - 1)) %>%
+            select(lambda) %>%
+            pull()
+
+        round(l, digits = 3)
+    })
 
     growth_rate <- reactive({
         input$lambda - 1
@@ -193,20 +196,18 @@ server <- function(input, output, session) {
         # Get time frame
         time = seq(from = 0, to = input$time_frame)
 
-        print(time)
-
         # Create df
         pop_growth = data.frame(time)
 
         # Get starting pop
-        starting_pop = data_pop_summary() %>% filter(lambda == 0) %>% select(total_pop) %>% pull()
+        starting_pop = starting_pop()
 
+        print(starting_pop)
         pop_growth = pop_growth %>%
             # Add starting population and exponential
             mutate(pop_size_exp = ifelse(time == 0, starting_pop, starting_pop*exp(time*growth_rate())),
                    pop_size_log = ifelse(time == 0, starting_pop, NA))
 
-        print(pop_growth)
         for (i in 1:(nrow(pop_growth) - 1)) {
             pop_growth <- pop_growth %>%
                 # Add logarithmic row wise through loop
@@ -217,7 +218,6 @@ server <- function(input, output, session) {
 #
 #         pop_growth <- pop_growth %>%
 #             pivot_longer(cols = c("pop_size_exp", "pop_size_log"))
-        print(head(pop_growth, n = 40))
         pop_growth
     })
 
@@ -228,7 +228,7 @@ server <- function(input, output, session) {
                   rownames = FALSE,
                   colnames = c("Age/stage </br>x",
                                "Individuals at time x </br> N<sub>x</sub>",
-                               "Individuals born at time x </br>b<sub>x</sub>",
+                               "Offspring from one individual at time x </br>b<sub>x</sub>",
                                "Probability at birth of surviving to time x </br>I<sub>x</sub>",
                                "Age specific mortality </br>(N<sub>x</sub>-N<sub>x+1</sub>) </br>d<sub>x</sub>",
                                "Age specific mortality rate </br>(d<sub>x</sub>/N<sub>x</sub>) </br>q<sub>x</sub>",
@@ -260,7 +260,7 @@ server <- function(input, output, session) {
                   selection = "none",
                   rownames = FALSE,
                   colnames = c("Age/stage </br>x",
-                               "Reproductive rate </br>I<sub>x</sub>b<sub>x</sub>",
+                               "Offspring from individual </br>b<sub>x</sub>",
                                "Survivorship </br>(1-q<sub>x</sub>) </br>s<sub>x</sub>",
                                "Starting population",
                                "Gen 1",
@@ -291,8 +291,8 @@ server <- function(input, output, session) {
                                  "paging" = FALSE,
                                  "ordering" = FALSE)
         ) %>%
-            formatRound(columns = 0) %>%
-            formatRound(columns = 1, digits = 3)
+            formatRound(columns = 1) %>%
+            formatRound(columns = 2, digits = 3)
     })
 
 # PLOTS ---------------------------------------------------------------------------------------
