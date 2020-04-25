@@ -18,52 +18,67 @@ ui <- fluidPage(
     fluidPage(
         column(width = 3,
                wellPanel(
+                   strong("Species characteristics"),
+                   textInput("name", label = "Species name:", value = "Jabberwocky"),
+                   br(),
+                   strong("Population and ecosystem dynamics"),
+                   numericInput("lambda", label = "Lambda:", value = 1.205),
+                   numericInput("carrying_cap", label = "Carrying capacity:", value = 10000)
 
                )
                ),
         column(width = 9,
-               column(width = 12,
-                      h3("Life Table"),
-                      br(),
-                      dataTableOutput("life_table"),
-                      br(),
-                      h3("Plots"),
-                      br(),
-                      tabsetPanel(id = "plots",
-                                  tabPanel(
-                                      "Survival",
+               tabsetPanel(id = "tabs",
+                           tabPanel(
+                               "Life table",
+                               column(width = 12,
                                       br(),
-                                      plotlyOutput("plot_survival")
-                                  ),
-                                  tabPanel(
-                                      "Mortality",
+                                      dataTableOutput("life_table"),
                                       br(),
-                                      plotlyOutput("plot_mortality")
-                                  ),
-                                  tabPanel(
-                                      "Reproduction",
                                       br(),
-                                      plotlyOutput("plot_reproductive")
-                                  )
-                      ),
-                      br()
-                      ),
-               column(width = 12,
-                      h3("Generations"),
-                      br(),
-                      h4("Population number at each generation and stage"),
-                      dataTableOutput("generations"),
-                      br()
-                      ),
-               column(width = 4,
-                      h4("Lamda calculation"),
-                      dataTableOutput("pop_summary"),
-                      br()
-                      ),
-               column(width = 12,
-                      h3("Population growth"),
-                      br()
-                      )
+                                      tabsetPanel(id = "plots",
+                                                  tabPanel(
+                                                      "Survival",
+                                                      br(),
+                                                      plotlyOutput("plot_survival")
+                                                  ),
+                                                  tabPanel(
+                                                      "Mortality",
+                                                      br(),
+                                                      plotlyOutput("plot_mortality")
+                                                  ),
+                                                  tabPanel(
+                                                      "Reproduction",
+                                                      br(),
+                                                      plotlyOutput("plot_reproductive")
+                                                  )
+                                      ),
+                                      br()
+                               )
+                               ),
+                           tabPanel(
+                               "Generations",
+                               column(width = 12,
+                                      br(),
+                                      h3("Generational numbers"),
+                                      dataTableOutput("generations"),
+                                      br()
+                               ),
+                               column(width = 4,
+                                      h3("Lamda calculation"),
+                                      dataTableOutput("pop_summary"),
+                                      br()
+                               )
+                           ),
+                           tabPanel(
+                               "Population growth",
+                               column(width = 12,
+                                      br()
+                               )
+                           )
+
+                           ),
+
         )
     )
 )
