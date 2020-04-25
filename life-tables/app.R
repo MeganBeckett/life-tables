@@ -19,7 +19,14 @@ ui <- fluidPage(
         column(width = 3,
                wellPanel(
                    strong("Species characteristics"),
-                   textInput("name", label = "Species name:", value = "Jabberwocky"),
+                   radioButtons("species_input", label = "", choices = c("Select species", "Create my own"), inline = TRUE),
+                   conditionalPanel("input.species_input == 'Select species'",
+                                    selectInput("name", label = "Species:", choices = c("Spotted froggit", "Leaping ostoodle", "Lesser humanoid"),
+                                                selected = "Leaping ostoodle")
+                                    ),
+                   conditionalPanel("input.species_input == 'Create my own'",
+                                    p("Still coming!")
+                   ),
                    br(),
                    strong("Population and ecosystem dynamics"),
                    numericInput("lambda", label = "Lambda:", value = 1.205, step = 0.1, width = "50%", min = 0),
@@ -94,9 +101,20 @@ server <- function(input, output, session) {
 # DATA ----------------------------------------------------------------------------------------
     data_life_table <- reactive({
 
-        age_stage = c(0,1,2,3,4,5)
-        num_ind = c(530, 159, 80, 48, 21, 5)
-        num_ind_birth = c(0, 2, 3, 3, 2, 0)
+        if (input$name == "Leaping ostoodle") {
+            age_stage = c(0,1,2,3,4,5,6, 7, 8)
+            num_ind = c(950, 530, 269, 160, 80, 48, 21, 11, 5)
+            num_ind_birth = c(0, 2, 2, 3, 3, 3, 2, 0, 0)
+        } else if (input$name == "Spotted froggit") {
+            age_stage = c(0,1,2,3,4, 5)
+            num_ind = c(10500, 500, 200, 150, 120, 98)
+            num_ind_birth = c(0, 200, 200, 100, 0, 0)
+        } else {
+            age_stage = c(0,1,2,3,4,5, 6, 7, 8, 9, 10)
+            num_ind = c(120, 115, 111, 109, 105, 95, 90, 74, 52, 21, 2)
+            num_ind_birth = c(0, 0, 0, 0, 1, 2, 2, 1, 0, 0, 0)
+        }
+
 
         df <- data.frame(age_stage, num_ind, num_ind_birth)
 
