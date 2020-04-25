@@ -77,6 +77,8 @@ ui <- fluidPage(
                                ),
                                column(width = 4,
                                       h3("Lamda calculation"),
+                                      uiOutput("starting_pop"),
+                                      br(),
                                       dataTableOutput("pop_summary"),
                                       br()
                                )
@@ -132,11 +134,23 @@ server <- function(input, output, session) {
     })
 
     data_generations <- reactive({
+        # Different starting populations for different species
+        if (input$name == "Leaping ostoodle") {
+            pop_0 = 20
+            pop_1 = 10
+        } else if (input$name == "Spotted froggit") {
+            pop_0 = 80
+            pop_1 = 20
+        } else {
+            pop_0 = 5
+            pop_1 = 4
+        }
+
         # Very manual calculation of set number of generations for now
         data_life_table() %>%
             select(age_stage, num_ind_birth, survivorship) %>%
-            mutate(starting_pop = ifelse(age_stage == 0, 20,
-                                         ifelse(age_stage == 1, 10, 0))) %>%
+            mutate(starting_pop = ifelse(age_stage == 0, pop_0,
+                                         ifelse(age_stage == 1, pop_1, 0))) %>%
             # Generation 1
             mutate(gen_1 = ifelse(age_stage > 0, lag(starting_pop, default = 0)*lag(survivorship, default = 0), 0)) %>%
             mutate(gen_1 = ifelse(age_stage == 0, crossprod(x = num_ind_birth, y = gen_1), gen_1)) %>%
@@ -357,7 +371,11 @@ server <- function(input, output, session) {
         )
     })
 
-
+    output$starting_pop <- renderUI({
+        tagList(
+            p(strong(paste0("Total population at start: ", starting_pop())))
+        )
+    })
 
 }
 
