@@ -22,8 +22,12 @@ ui <- fluidPage(
                    textInput("name", label = "Species name:", value = "Jabberwocky"),
                    br(),
                    strong("Population and ecosystem dynamics"),
+                   numericInput("lambda", label = "Lambda:", value = 1.205, step = 0.1, width = "50%", min = 0),
                    uiOutput("pop_params"),
-                   numericInput("carrying_cap", label = "Carrying capacity:", value = 10000)
+                   sliderInput("carrying_cap", label = "Carrying capacity:",
+                                value = 10000, min = 1000, max = 100000, step = 1000),
+                   sliderInput("time_frame", label = "Time frame:",
+                                value = 30, min = 5, max = 100, step = 5)
 
                )
                ),
@@ -73,7 +77,8 @@ ui <- fluidPage(
                            tabPanel(
                                "Population growth",
                                column(width = 12,
-                                      br()
+                                      br(),
+                                      plotlyOutput("plot_growth")
                                )
                            )
                            ),
@@ -152,17 +157,50 @@ server <- function(input, output, session) {
             column_to_rownames(var = "gen")
     })
 
-    lambda <- reactive({
-        l = data_pop_summary() %>%
-            filter(row_number() == (n() - 1)) %>%
-            select(lambda) %>%
-            pull()
-
-        round(l, digits = 3)
-    })
+    # lambda <- reactive({
+    #     l = data_pop_summary() %>%
+    #         filter(row_number() == (n() - 1)) %>%
+    #         select(lambda) %>%
+    #         pull()
+    #
+    #     round(l, digits = 3)
+    # })
 
     growth_rate <- reactive({
-        lambda() - 1
+        input$lambda - 1
+    })
+
+    data_pop_growth <- reactive({
+
+        # Get time frame
+        time = seq(from = 0, to = input$time_frame)
+
+        print(time)
+
+        # Create df
+        pop_growth = data.frame(time)
+
+        # Get starting pop
+        starting_pop = data_pop_summary() %>% filter(lambda == 0) %>% select(total_pop) %>% pull()
+
+        pop_growth = pop_growth %>%
+            # Add starting population and exponential
+            mutate(pop_size_exp = ifelse(time == 0, starting_pop, starting_pop*exp(time*growth_rate())),
+                   pop_size_log = ifelse(time == 0, starting_pop, NA))
+
+        print(pop_growth)
+        for (i in 1:(nrow(pop_growth) - 1)) {
+            pop_growth <- pop_growth %>%
+                # Add logarithmic row wise through loop
+                mutate(pop_size_log = ifelse(time > 0, input$lambda*lag(pop_size_log)*((input$carrying_cap - lag(pop_size_log))/input$carrying_cap), pop_size_log))
+        }
+
+        print(pop_growth)
+#
+#         pop_growth <- pop_growth %>%
+#             pivot_longer(cols = c("pop_size_exp", "pop_size_log"))
+        print(head(pop_growth, n = 40))
+        pop_growth
     })
 
 # TABLES --------------------------------------------------------------------------------------
@@ -228,7 +266,7 @@ server <- function(input, output, session) {
         datatable(data_pop_summary(),
                   selection = "none",
                   colnames = c("Total population",
-                               "lamda"
+                               "lambda"
                   ),
                   escape = FALSE,
                   options = list("searching" = FALSE,
@@ -278,18 +316,27 @@ server <- function(input, output, session) {
             ggplotly(tooltip = "text")
     })
 
+    output$plot_growth <- renderPlotly({
+        plot_ly(data_pop_growth(), x = ~time) %>%
+            add_lines(y = ~pop_size_exp,
+                      name = "Exponential growth",
+                                line = list(color = "purple")) %>%
+            add_lines(y = ~pop_size_log,
+                      name = "Logarithmic growth",
+                      line = list(color = "orange")) %>%
+            layout(title = "Population growth over time",
+                   xaxis = list(title = "Time"),
+                   yaxis = list(title = "Population size"),
+                   legend = list(orientation = 'h'))
+    })
+
 
 # RENDER UI -----------------------------------------------------------------------------------
     output$pop_params <- renderUI({
-        starting_value = lambda()
-
         tagList(
-            numericInput("lambda", label = "Lambda:", value = starting_value),
             p("Growth rate:"),
             p(growth_rate())
         )
-
-
     })
 
 
