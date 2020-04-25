@@ -40,7 +40,12 @@ ui <- fluidPage(
                                br(),
                                plotlyOutput("plot_reproductive")
                            )
-               )
+               ),
+               br(),
+               h3("Generations"),
+               br(),
+               h3("Population growth"),
+               br()
 
         )
     )
@@ -72,6 +77,15 @@ server <- function(input, output, session) {
         )
     })
 
+    data_generations <- reactive({
+
+        df <- data_life_table() %>%
+            select(age_stage, num_ind_birth, survivorship) %>%
+            mutate(starting_pop = ifelse(age_stage == 0, 20,
+                                         ifelse(age_stage == 1, 10, NA)))
+    })
+
+# TABLES --------------------------------------------------------------------------------------
     output$life_table <- renderDataTable({
         datatable(data_life_table(),
                   selection = "none",
@@ -106,13 +120,15 @@ server <- function(input, output, session) {
 
 # PLOTS ---------------------------------------------------------------------------------------
     output$plot_survival <- renderPlotly({
+
         (ggplot(data_life_table(), aes(x = age_stage, y = prob_survival, group = 1,
                                     text = paste0("Age/stage: ", age_stage, "</br></br>",
                                                   "Probability: ", prob_survival))) +
             geom_line(color = "mediumblue") +
             geom_point(color = "mediumblue") +
+            # scale_y_continuous(trans = 'log10') +
             labs(title = "Probability at birth of surviving to time x",
-                 x = "Age/stage", y = "Probability") +
+                 x = "Age/stage", y = "Probability (log scale)") +
             theme_classic()) %>%
             ggplotly(tooltip = "text")
     })
