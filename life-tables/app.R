@@ -88,6 +88,18 @@ server <- function(input, output, session) {
                   # editable = list(target = "cell", disable = list(columns = c(0, 3, 4, 5, 6, 7))),
                   options = list("searching" = FALSE,
                                  "paging" = FALSE)
+        ) %>%
+        formatStyle(
+            'prob_survival',
+             backgroundColor = "#e5ecff"
+        ) %>%
+        formatStyle(
+            'age_mortality_rate',
+            backgroundColor = "#fff1ed"
+        ) %>%
+        formatStyle(
+            'age_reproductive_rate',
+            backgroundColor = "#e9fce0"
         )
     })
 
@@ -97,8 +109,8 @@ server <- function(input, output, session) {
         (ggplot(data_life_table(), aes(x = age_stage, y = prob_survival, group = 1,
                                     text = paste0("Age/stage: ", age_stage, "</br></br>",
                                                   "Probability: ", prob_survival))) +
-            geom_line(color = "darkblue") +
-            geom_point(color = "darkblue") +
+            geom_line(color = "mediumblue") +
+            geom_point(color = "mediumblue") +
             labs(title = "Probability at birth of surviving to time x",
                  x = "Age/stage", y = "Probability") +
             theme_classic()) %>%
@@ -109,8 +121,8 @@ server <- function(input, output, session) {
         (ggplot(data_life_table(), aes(x = age_stage, y = age_mortality_rate, group = 1,
                                        text = paste0("Age/stage: ", age_stage, "</br></br>",
                                                      "Mortality rate: ", age_reproductive_rate))) +
-             geom_line(color = "darkred") +
-             geom_point(color = "darkred") +
+             geom_line(color = "orangered") +
+             geom_point(color = "orangered") +
              labs(title = "Age/stage specific mortality rate",
                   x = "Age/stage", y = "Rate") +
              theme_classic()) %>%
@@ -121,8 +133,8 @@ server <- function(input, output, session) {
         (ggplot(data_life_table(), aes(x = age_stage, y = age_reproductive_rate, group = 1,
                                        text = paste0("Age/stage: ", age_stage, "</br></br>",
                                                      "Reproductive rate: ", age_reproductive_rate))) +
-             geom_line(color = "darkgreen") +
-             geom_point(color = "darkgreen") +
+             geom_line(color = "forestgreen") +
+             geom_point(color = "forestgreen") +
              labs(title = "Age/stage specific reproductive rate",
                   x = "Age/stage", y = "Rate") +
              theme_classic()) %>%
