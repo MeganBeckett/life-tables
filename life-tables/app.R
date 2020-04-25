@@ -1,6 +1,8 @@
 library(shiny)
 library(dplyr)
+library(tidyr)
 library(DT)
+library(tibble)
 library(ggplot2)
 library(plotly)
 library(shinythemes)
@@ -20,33 +22,48 @@ ui <- fluidPage(
                )
                ),
         column(width = 9,
-               h3("Life Table"),
-               dataTableOutput("life_table"),
-               br(),
-               h3("Plots"),
-               tabsetPanel(id = "plots",
-                           tabPanel(
-                               "Survival",
-                               br(),
-                               plotlyOutput("plot_survival")
-                           ),
-                           tabPanel(
-                               "Mortality",
-                               br(),
-                               plotlyOutput("plot_mortality")
-                           ),
-                           tabPanel(
-                               "Reproduction",
-                               br(),
-                               plotlyOutput("plot_reproductive")
-                           )
-               ),
-               br(),
-               h3("Generations"),
-               br(),
-               h3("Population growth"),
-               br()
-
+               column(width = 12,
+                      h3("Life Table"),
+                      br(),
+                      dataTableOutput("life_table"),
+                      br(),
+                      h3("Plots"),
+                      br(),
+                      tabsetPanel(id = "plots",
+                                  tabPanel(
+                                      "Survival",
+                                      br(),
+                                      plotlyOutput("plot_survival")
+                                  ),
+                                  tabPanel(
+                                      "Mortality",
+                                      br(),
+                                      plotlyOutput("plot_mortality")
+                                  ),
+                                  tabPanel(
+                                      "Reproduction",
+                                      br(),
+                                      plotlyOutput("plot_reproductive")
+                                  )
+                      ),
+                      br()
+                      ),
+               column(width = 12,
+                      h3("Generations"),
+                      br(),
+                      h4("Population number at each generation and stage"),
+                      dataTableOutput("generations"),
+                      br()
+                      ),
+               column(width = 4,
+                      h4("Lamda calculation"),
+                      dataTableOutput("pop_summary"),
+                      br()
+                      ),
+               column(width = 12,
+                      h3("Population growth"),
+                      br()
+                      )
         )
     )
 )
@@ -60,7 +77,7 @@ server <- function(input, output, session) {
 
         age_stage = c(0,1,2,3,4,5)
         num_ind = c(530, 159, 80, 48, 21, 5)
-        num_ind_birth = c(0, 2, 3, 3, 3, 0)
+        num_ind_birth = c(0, 2, 3, 3, 2, 0)
 
         df <- data.frame(age_stage, num_ind, num_ind_birth)
 
@@ -78,11 +95,46 @@ server <- function(input, output, session) {
     })
 
     data_generations <- reactive({
-
-        df <- data_life_table() %>%
+        # Very manual calculation of set number of generations for now
+        data_life_table() %>%
             select(age_stage, num_ind_birth, survivorship) %>%
             mutate(starting_pop = ifelse(age_stage == 0, 20,
-                                         ifelse(age_stage == 1, 10, NA)))
+                                         ifelse(age_stage == 1, 10, 0))) %>%
+            # Generation 1
+            mutate(gen_1 = ifelse(age_stage > 0, lag(starting_pop, default = 0)*lag(survivorship, default = 0), 0)) %>%
+            mutate(gen_1 = ifelse(age_stage == 0, crossprod(x = num_ind_birth, y = gen_1), gen_1)) %>%
+            # Generation 2
+            mutate(gen_2 = ifelse(age_stage > 0, lag(gen_1, default = 0)*lag(survivorship, default = 0), 0)) %>%
+            mutate(gen_2 = ifelse(age_stage == 0, crossprod(x = num_ind_birth, y = gen_2), gen_2))  %>%
+            # Generation 3
+            mutate(gen_3 = ifelse(age_stage > 0, lag(gen_2, default = 0)*lag(survivorship, default = 0), 0)) %>%
+            mutate(gen_3 = ifelse(age_stage == 0, crossprod(x = num_ind_birth, y = gen_3), gen_3)) %>%
+            # Generation 4
+            mutate(gen_4 = ifelse(age_stage > 0, lag(gen_3, default = 0)*lag(survivorship, default = 0), 0)) %>%
+            mutate(gen_4 = ifelse(age_stage == 0, crossprod(x = num_ind_birth, y = gen_4), gen_4)) %>%
+            # Generation 5
+            mutate(gen_5 = ifelse(age_stage > 0, lag(gen_4, default = 0)*lag(survivorship, default = 0), 0)) %>%
+            mutate(gen_5 = ifelse(age_stage == 0, crossprod(x = num_ind_birth, y = gen_5), gen_5)) %>%
+            # Generation 6
+            mutate(gen_6 = ifelse(age_stage > 0, lag(gen_5, default = 0)*lag(survivorship, default = 0), 0)) %>%
+            mutate(gen_6 = ifelse(age_stage == 0, crossprod(x = num_ind_birth, y = gen_6), gen_6)) %>%
+            # Generation 7
+            mutate(gen_7 = ifelse(age_stage > 0, lag(gen_6, default = 0)*lag(survivorship, default = 0), 0)) %>%
+            mutate(gen_7 = ifelse(age_stage == 0, crossprod(x = num_ind_birth, y = gen_7), gen_7)) %>%
+            # Generation 8
+            mutate(gen_8 = ifelse(age_stage > 0, lag(gen_7, default = 0)*lag(survivorship, default = 0), 0)) %>%
+            mutate(gen_8 = ifelse(age_stage == 0, crossprod(x = num_ind_birth, y = gen_8), gen_8))
+
+    })
+
+    data_pop_summary <- reactive({
+        data_generations() %>%
+            select(-num_ind_birth, -survivorship, -starting_pop) %>%
+            pivot_longer(cols = starts_with("gen"), names_to = "gen") %>%
+            group_by(gen) %>%
+            summarise(total_pop = sum(value)) %>%
+            mutate(lambda = lead(total_pop, default = 0)/total_pop) %>%
+            column_to_rownames(var = "gen")
     })
 
 # TABLES --------------------------------------------------------------------------------------
@@ -101,7 +153,9 @@ server <- function(input, output, session) {
                   escape = FALSE,
                   # editable = list(target = "cell", disable = list(columns = c(0, 3, 4, 5, 6, 7))),
                   options = list("searching" = FALSE,
-                                 "paging" = FALSE)
+                                 "paging" = FALSE,
+                                 "ordering" = FALSE
+                                 )
         ) %>%
         formatStyle(
             'prob_survival',
@@ -117,6 +171,44 @@ server <- function(input, output, session) {
         )
     })
 
+    output$generations <- renderDataTable({
+        datatable(data_generations(),
+                  selection = "none",
+                  rownames = FALSE,
+                  colnames = c("Age/stage </br>x",
+                               "Reproductive rate </br>I<sub>x</sub>b<sub>x</sub>",
+                               "Survivorship </br>(1-q<sub>x</sub>) </br>s<sub>x</sub>",
+                               "Starting population",
+                               "Gen 1",
+                               "Gen 2",
+                               "Gen 3",
+                               "Gen 4",
+                               "Gen 5",
+                               "Gen 6",
+                               "Gen 7",
+                               "Gen 8"
+                               ),
+                  escape = FALSE,
+                  options = list("searching" = FALSE,
+                                 "paging" = FALSE,
+                                 "ordering" = FALSE)
+        ) %>%
+            formatRound(columns = 0:-1)
+    })
+
+    output$pop_summary <- renderDataTable({
+        datatable(data_pop_summary(),
+                  selection = "none",
+                  colnames = c("Total population",
+                               "lamda"
+                  ),
+                  escape = FALSE,
+                  options = list("searching" = FALSE,
+                                 "paging" = FALSE,
+                                 "ordering" = FALSE)
+        ) %>%
+            formatRound(columns = 0:2)
+    })
 
 # PLOTS ---------------------------------------------------------------------------------------
     output$plot_survival <- renderPlotly({
@@ -126,7 +218,7 @@ server <- function(input, output, session) {
                                                   "Probability: ", prob_survival))) +
             geom_line(color = "mediumblue") +
             geom_point(color = "mediumblue") +
-            # scale_y_continuous(trans = 'log10') +
+            scale_y_continuous(trans = 'log10') +
             labs(title = "Probability at birth of surviving to time x",
                  x = "Age/stage", y = "Probability (log scale)") +
             theme_classic()) %>%
