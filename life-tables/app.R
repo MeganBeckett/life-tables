@@ -22,7 +22,7 @@ ui <- fluidPage(
                    textInput("name", label = "Species name:", value = "Jabberwocky"),
                    br(),
                    strong("Population and ecosystem dynamics"),
-                   numericInput("lambda", label = "Lambda:", value = 1.205),
+                   uiOutput("pop_params"),
                    numericInput("carrying_cap", label = "Carrying capacity:", value = 10000)
 
                )
@@ -76,7 +76,6 @@ ui <- fluidPage(
                                       br()
                                )
                            )
-
                            ),
 
         )
@@ -144,12 +143,26 @@ server <- function(input, output, session) {
 
     data_pop_summary <- reactive({
         data_generations() %>%
-            select(-num_ind_birth, -survivorship, -starting_pop) %>%
-            pivot_longer(cols = starts_with("gen"), names_to = "gen") %>%
+            select(-num_ind_birth, -survivorship) %>%
+            pivot_longer(cols = c("starting_pop", starts_with("gen")), names_to = "gen") %>%
             group_by(gen) %>%
             summarise(total_pop = sum(value)) %>%
             mutate(lambda = lead(total_pop, default = 0)/total_pop) %>%
+            arrange(total_pop) %>%
             column_to_rownames(var = "gen")
+    })
+
+    lambda <- reactive({
+        l = data_pop_summary() %>%
+            filter(row_number() == (n() - 1)) %>%
+            select(lambda) %>%
+            pull()
+
+        round(l, digits = 3)
+    })
+
+    growth_rate <- reactive({
+        lambda() - 1
     })
 
 # TABLES --------------------------------------------------------------------------------------
@@ -222,7 +235,8 @@ server <- function(input, output, session) {
                                  "paging" = FALSE,
                                  "ordering" = FALSE)
         ) %>%
-            formatRound(columns = 0:2)
+            formatRound(columns = 0) %>%
+            formatRound(columns = 1, digits = 3)
     })
 
 # PLOTS ---------------------------------------------------------------------------------------
@@ -263,6 +277,21 @@ server <- function(input, output, session) {
              theme_classic()) %>%
             ggplotly(tooltip = "text")
     })
+
+
+# RENDER UI -----------------------------------------------------------------------------------
+    output$pop_params <- renderUI({
+        starting_value = lambda()
+
+        tagList(
+            numericInput("lambda", label = "Lambda:", value = starting_value),
+            p("Growth rate:"),
+            p(growth_rate())
+        )
+
+
+    })
+
 
 
 }
