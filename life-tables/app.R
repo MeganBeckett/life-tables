@@ -88,7 +88,9 @@ ui <- fluidPage(
                                "Population growth",
                                column(width = 12,
                                       br(),
-                                      plotlyOutput("plot_growth")
+                                      plotlyOutput("plot_growth_exp"),
+                                      br(),
+                                      plotlyOutput("plot_growth_log")
                                ),
                                column(width = 4,
                                       h3("Data"),
@@ -234,14 +236,16 @@ server <- function(input, output, session) {
 
         pop_growth = pop_growth %>%
             # Add starting population and exponential
-            mutate(pop_size_exp = ifelse(time == 0, starting_pop, starting_pop*exp(time*growth_rate())),
-                   pop_size_log = ifelse(time == 0, starting_pop, NA))
+            mutate(pop_size_exp = ifelse(time == 0, starting_pop,
+                                         starting_pop*exp(time*growth_rate())),
+                   pop_size_log = ifelse(time == 0, starting_pop,
+                                         input$carrying_cap/(1 + ((input$carrying_cap - starting_pop)/starting_pop)*exp(-time*growth_rate()))))
 
-        for (i in 1:(nrow(pop_growth) - 1)) {
-            pop_growth <- pop_growth %>%
-                # Add logarithmic row wise through loop
-                mutate(pop_size_log = ifelse(time > 0, input$lambda*lag(pop_size_log)*((input$carrying_cap - lag(pop_size_log))/input$carrying_cap), pop_size_log))
-        }
+        # for (i in 1:(nrow(pop_growth) - 1)) {
+        #     pop_growth <- pop_growth %>%
+        #         # Add logarithmic row wise through loop
+        #         mutate(pop_size_log = ifelse(time > 0, input$lambda*lag(pop_size_log)*((input$carrying_cap - lag(pop_size_log))/input$carrying_cap), pop_size_log))
+        # }
 
         pop_growth
     })
@@ -431,20 +435,30 @@ server <- function(input, output, session) {
             ggplotly(tooltip = "text")
     })
 
-    output$plot_growth <- renderPlotly({
-        title_species = paste0("Population growth over time for ", species_name())
+    output$plot_growth_exp <- renderPlotly({
+        title_species = paste0("Exponential population growth over time for ", species_name())
 
         plot_ly(data_pop_growth(), x = ~time) %>%
             add_lines(y = ~pop_size_exp,
                       name = "Exponential growth",
                                 line = list(color = "purple")) %>%
+            layout(title = title_species,
+                   xaxis = list(title = "Time"),
+                   yaxis = list(title = "Population size"),
+                   legend = list(orientation = 'v'))
+    })
+
+    output$plot_growth_log <- renderPlotly({
+        title_species = paste0("Logarithmic population growth over time for ", species_name())
+
+        plot_ly(data_pop_growth(), x = ~time) %>%
             add_lines(y = ~pop_size_log,
                       name = "Logarithmic growth",
                       line = list(color = "orange")) %>%
             layout(title = title_species,
                    xaxis = list(title = "Time"),
                    yaxis = list(title = "Population size"),
-                   legend = list(orientation = 'h'))
+                   legend = list(orientation = 'v'))
     })
 
 
