@@ -6,6 +6,7 @@ library(tibble)
 library(ggplot2)
 library(plotly)
 library(shinythemes)
+library(shinyMatrix)
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
@@ -25,7 +26,10 @@ ui <- fluidPage(
                                                 selected = "Leaping ostoodle")
                                     ),
                    conditionalPanel("input.species_input == 'Create my own'",
-                                    p("Still coming!")
+                                    textInput("name_create", label = "Species name:"),
+                                    selectInput("age_stage_no", label = "Number of ages/stages:", choices = c(5, 8, 10),
+                                                selected = 5, width = "50%"),
+                                    uiOutput("data_create")
                    ),
                    br(),
                    strong("Population and ecosystem dynamics"),
@@ -107,7 +111,6 @@ ui <- fluidPage(
 
 # Define server logic required to draw a histogram
 server <- function(input, output, session) {
-
 
 # DATA ----------------------------------------------------------------------------------------
     data_life_table <- reactive({
@@ -486,6 +489,50 @@ server <- function(input, output, session) {
     output$starting_pop <- renderUI({
         tagList(
             p(strong(paste0("Total population at start: ", starting_pop())))
+        )
+    })
+
+    output$data_create <- renderUI({
+        req(input$species_input == 'Create my own')
+
+        col_names <- seq(from = 0, to = input$age_stage_no, by = 1)
+        rows = as.numeric(input$age_stage_no) + 1
+
+        m1 = matrix(nrow = rows, ncol = 2,
+               dimnames = list(col_names,
+                               c("Individuals at time x", "Offspring at time x")))
+
+        m2 = matrix(nrow = 2, ncol = 1,
+                    dimnames = list(c(0, 1),
+                                    c("Starting population")))
+        tagList(
+            p("Enter data:"),
+            column(width = 12,
+                   matrixInput(
+                       inputId = "matrix_data_create",
+                       value = m1,
+                       class = "numeric",
+                       cols = list(
+                           names = TRUE
+                       ),
+                       rows = list(
+                           names = TRUE
+                       )
+                   )
+                   ),
+            column(width = 8,
+                   matrixInput(
+                       inputId = "matrix_data_start",
+                       value = m2,
+                       class = "numeric",
+                       cols = list(
+                           names = TRUE
+                       ),
+                       rows = list(
+                           names = TRUE
+                       )
+                   )
+            )
         )
     })
 
