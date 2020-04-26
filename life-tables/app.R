@@ -7,9 +7,11 @@ library(ggplot2)
 library(plotly)
 library(shinythemes)
 library(shinyMatrix)
+library(shinyjs)
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
+    useShinyjs(),
 
     theme = shinytheme("lumen"),
 
@@ -19,28 +21,33 @@ ui <- fluidPage(
     fluidPage(
         column(width = 3,
                wellPanel(
-                   strong("Species"),
-                   radioButtons("species_input", label = "", choices = c("Select species", "Create my own"), inline = TRUE),
-                   conditionalPanel("input.species_input == 'Select species'",
-                                    selectInput("name", label = "Species:", choices = c("Spotted froggit", "Leaping ostoodle", "Lesser humanoid"),
-                                                selected = "Leaping ostoodle")
-                                    ),
-                   conditionalPanel("input.species_input == 'Create my own'",
-                                    textInput("name_create", label = "Species name:"),
-                                    selectInput("age_stage_no", label = "Number of ages/stages:", choices = c(5, 8, 10),
-                                                selected = 5, width = "50%"),
-                                    uiOutput("data_create")
-                   ),
-                   br(),
-                   strong("Population and ecosystem dynamics"),
-                   br(),
-                   uiOutput("pop_params"),
-                   br(),
-                   sliderInput("carrying_cap", label = "Carrying capacity:",
-                                value = 10000, min = 100, max = 100000, step = 100),
-                   sliderInput("time_frame", label = "Time frame:",
-                                value = 20, min = 5, max = 100, step = 5)
+                   fluidRow(
+                       strong("Species"),
+                       radioButtons("species_input", label = "", choices = c("Select species", "Create my own"), inline = TRUE),
+                       conditionalPanel("input.species_input == 'Select species'",
+                                        selectInput("name", label = "Species:", choices = c("Spotted froggit", "Leaping ostoodle", "Lesser humanoid"),
+                                                    selected = "Leaping ostoodle")
+                       ),
+                       conditionalPanel("input.species_input == 'Create my own'",
+                                        textInput("name_create", label = "Species name:"),
+                                        selectInput("age_stage_no", label = "Number of ages/stages:", choices = c(5, 8, 10),
+                                                    selected = 5, width = "50%"),
+                                        uiOutput("data_create"),
+                                        br()
 
+                       ),
+                   ),
+                   fluidRow(
+                       br(),
+                       strong("Population and ecosystem dynamics"),
+                       br(),
+                       uiOutput("pop_params"),
+                       br(),
+                       sliderInput("carrying_cap", label = "Carrying capacity:",
+                                   value = 10000, min = 100, max = 100000, step = 100),
+                       sliderInput("time_frame", label = "Time frame:",
+                                   value = 20, min = 5, max = 100, step = 5)
+                   )
                )
                ),
         column(width = 9,
@@ -115,22 +122,31 @@ server <- function(input, output, session) {
 # DATA ----------------------------------------------------------------------------------------
     data_life_table <- reactive({
 
-        if (input$name == "Leaping ostoodle") {
-            age_stage = c(0,1,2,3,4,5,6, 7, 8)
-            num_ind = c(950, 530, 269, 160, 80, 48, 21, 11, 5)
-            num_ind_birth = c(0, 2, 2, 3, 3, 3, 2, 0, 0)
-        } else if (input$name == "Spotted froggit") {
-            age_stage = c(0,1,2,3,4, 5)
-            num_ind = c(700, 55, 25, 15, 10, 3)
-            num_ind_birth = c(0, 10, 10, 5, 0, 0)
+        if (input$species_input == 'Select species') {
+            if (input$name == "Leaping ostoodle") {
+                age_stage = c(0,1,2,3,4,5,6, 7, 8)
+                num_ind = c(950, 530, 269, 160, 80, 48, 21, 11, 5)
+                num_ind_birth = c(0, 2, 2, 3, 3, 3, 2, 0, 0)
+            } else if (input$name == "Spotted froggit") {
+                age_stage = c(0,1,2,3,4, 5)
+                num_ind = c(700, 55, 25, 15, 10, 3)
+                num_ind_birth = c(0, 10, 10, 5, 0, 0)
+            } else {
+                age_stage = c(0,1,2,3,4,5, 6, 7, 8, 9, 10)
+                num_ind = c(120, 115, 111, 109, 105, 95, 90, 74, 52, 21, 2)
+                num_ind_birth = c(0, 0, 0, 0, 1, 2, 2, 1, 0, 0, 0)
+            }
+
+            df <- data.frame(age_stage, num_ind, num_ind_birth)
         } else {
-            age_stage = c(0,1,2,3,4,5, 6, 7, 8, 9, 10)
-            num_ind = c(120, 115, 111, 109, 105, 95, 90, 74, 52, 21, 2)
-            num_ind_birth = c(0, 0, 0, 0, 1, 2, 2, 1, 0, 0, 0)
+            req(input$create)
+            print(input$matrix_data_create)
+            df = as.data.frame(input$matrix_data_create) %>%
+                rownames_to_column(var = "age_stage") %>%
+                rename(num_ind = "Individuals at time x",
+                       num_ind_birth = "Offspring at time x")
+            print(df)
         }
-
-
-        df <- data.frame(age_stage, num_ind, num_ind_birth)
 
         # Get the starting populating number
         starting_num = df[1, 2]
@@ -282,6 +298,11 @@ server <- function(input, output, session) {
         # } else {
         #     input$name_create
         # }
+    })
+
+    missing_data <- reactive({
+        (is.null(input$name_create) | input$name_create == "") ||
+            anyNA(input$matrix_data_create) || anyNA(input$matrix_data_start)
     })
 
 # TABLES --------------------------------------------------------------------------------------
@@ -532,8 +553,23 @@ server <- function(input, output, session) {
                            names = TRUE
                        )
                    )
-            )
+            ),
+            column(width = 12,
+                   disabled(
+                       actionButton("create", "Create", class = "btn-success")
+                   ),
+                   br()
+                   )
         )
+    })
+
+    observe({
+        if (missing_data()) {
+            disable("create")
+        }
+        else{
+            enable("create")
+        }
     })
 
 }
