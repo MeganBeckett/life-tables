@@ -30,7 +30,7 @@ ui <- fluidPage(
                        ),
                        conditionalPanel("input.species_input == 'Create my own'",
                                         textInput("name_create", label = "Species name:"),
-                                        selectInput("age_stage_no", label = "Number of ages/stages:", choices = c(5, 8, 10),
+                                        selectInput("age_stage_no", label = "Number of ages/stages:", choices = c(3, 4, 5, 6, 7, 8, 9, 10),
                                                     selected = 5, width = "50%"),
                                         uiOutput("data_create"),
                                         br()
@@ -121,6 +121,9 @@ server <- function(input, output, session) {
 
 # DATA ----------------------------------------------------------------------------------------
     data_life_table <- reactive({
+        if (input$species_input == 'Create my own' & missing_data()) {
+            return()
+        }
 
         if (input$species_input == 'Select species') {
             if (input$name == "Leaping ostoodle") {
@@ -140,12 +143,10 @@ server <- function(input, output, session) {
             df <- data.frame(age_stage, num_ind, num_ind_birth)
         } else {
             req(input$create)
-            print(input$matrix_data_create)
             df = as.data.frame(input$matrix_data_create) %>%
                 rownames_to_column(var = "age_stage") %>%
                 rename(num_ind = "Individuals at time x",
                        num_ind_birth = "Offspring at time x")
-            print(df)
         }
 
         # Get the starting populating number
@@ -162,16 +163,26 @@ server <- function(input, output, session) {
     })
 
     data_generations <- reactive({
+        if (input$species_input == 'Create my own' & missing_data()) {
+            return()
+        }
+
+        if (input$species_input == 'Select species') {
         # Different starting populations for different species
-        if (input$name == "Leaping ostoodle") {
-            pop_0 = 20
-            pop_1 = 10
-        } else if (input$name == "Spotted froggit") {
-            pop_0 = 80
-            pop_1 = 20
+            if (input$name == "Leaping ostoodle") {
+                pop_0 = 20
+                pop_1 = 10
+            } else if (input$name == "Spotted froggit") {
+                pop_0 = 80
+                pop_1 = 20
+            } else {
+                pop_0 = 15
+                pop_1 = 14
+            }
         } else {
-            pop_0 = 15
-            pop_1 = 14
+            # Get starting populations from input
+            pop_0 = input$matrix_data_start[1, 1]
+            pop_1 = input$matrix_data_start[2, 1]
         }
 
         # Create 3 generations by default
@@ -285,7 +296,7 @@ server <- function(input, output, session) {
     })
 
     gen_to_stabilize <- reactive({
-        nrow(data_pop_summary())
+        nrow(data_pop_summary()) - 1
     })
 
     starting_pop <- reactive({
@@ -293,11 +304,11 @@ server <- function(input, output, session) {
     })
 
     species_name <- reactive({
-        # if (input$species_input == 'Select species') {
+        if (input$species_input == 'Select species') {
             input$name
-        # } else {
-        #     input$name_create
-        # }
+        } else {
+            input$name_create
+        }
     })
 
     missing_data <- reactive({
@@ -305,8 +316,18 @@ server <- function(input, output, session) {
             anyNA(input$matrix_data_create) || anyNA(input$matrix_data_start)
     })
 
+    output$missing_data_check <- reactive({
+        missing_data()
+    })
+
+    outputOptions(output, "missing_data_check", suspendWhenHidden = FALSE)
+
 # TABLES --------------------------------------------------------------------------------------
     output$life_table <- renderDataTable({
+        if (input$species_input == 'Create my own' & missing_data()) {
+            return()
+        }
+
         datatable(data_life_table(),
                   extensions = 'Buttons',
                   selection = "none",
@@ -347,6 +368,10 @@ server <- function(input, output, session) {
     })
 
     output$generations <- renderDataTable({
+        if (input$species_input == 'Create my own' & missing_data()) {
+            return()
+        }
+
         data_generations() %>%
             rename("Age/stage </br>x" = age_stage,
                    "Offspring from individual </br>b<sub>x</sub>" = num_ind_birth,
@@ -371,6 +396,10 @@ server <- function(input, output, session) {
     })
 
     output$pop_summary <- renderDataTable({
+        if (input$species_input == 'Create my own' & missing_data()) {
+            return()
+        }
+
         datatable(data_pop_summary(),
                   selection = "none",
                   colnames = c("Total population",
@@ -386,6 +415,10 @@ server <- function(input, output, session) {
     })
 
     output$pop_growth <- renderDataTable({
+        if (input$species_input == 'Create my own' & missing_data()) {
+            return()
+        }
+
         datatable(data_pop_growth(),
                   extensions = 'Buttons',
                   selection = "none",
@@ -417,6 +450,10 @@ server <- function(input, output, session) {
 
 # PLOTS ---------------------------------------------------------------------------------------
     output$plot_survival <- renderPlotly({
+        if (input$species_input == 'Create my own' & missing_data()) {
+            return()
+        }
+
         title_species = paste0("Probability at birth of surviving to time x for ", species_name())
 
         (ggplot(data_life_table(), aes(x = age_stage, y = prob_survival, group = 1,
@@ -432,6 +469,10 @@ server <- function(input, output, session) {
     })
 
     output$plot_mortality <- renderPlotly({
+        if (input$species_input == 'Create my own' & missing_data()) {
+            return()
+        }
+
         title_species = paste0("Age/stage specific mortality rate for ", species_name())
 
         (ggplot(data_life_table(), aes(x = age_stage, y = age_mortality_rate, group = 1,
@@ -446,6 +487,10 @@ server <- function(input, output, session) {
     })
 
     output$plot_reproductive <- renderPlotly({
+        if (input$species_input == 'Create my own' & missing_data()) {
+            return()
+        }
+
         title_species = paste0("Age/stage specific reproductive rate for ", species_name())
 
         (ggplot(data_life_table(), aes(x = age_stage, y = age_reproductive_rate, group = 1,
@@ -460,6 +505,10 @@ server <- function(input, output, session) {
     })
 
     output$plot_growth_exp <- renderPlotly({
+        if (input$species_input == 'Create my own' & missing_data()) {
+            return()
+        }
+
         title_species = paste0("Exponential population growth over time for ", species_name())
 
         plot_ly(data_pop_growth(), x = ~time) %>%
@@ -473,6 +522,10 @@ server <- function(input, output, session) {
     })
 
     output$plot_growth_log <- renderPlotly({
+        if (input$species_input == 'Create my own' & missing_data()) {
+            return()
+        }
+
         title_species = paste0("Logarithmic population growth over time for ", species_name())
 
         plot_ly(data_pop_growth(), x = ~time) %>%
@@ -491,13 +544,20 @@ server <- function(input, output, session) {
 
 # RENDER UI -----------------------------------------------------------------------------------
     output$pop_params <- renderUI({
-        if (input$name == "Leaping ostoodle") {
-            lambda_species = 1.702
-        } else if (input$name == "Spotted froggit") {
-            lambda_species = 1.182
-        } else if (input$name == "Lesser humanoid") {
-            lambda_species = 1.333
+        if (input$species_input == 'Create my own' & missing_data()) {
+            return()
         }
+
+        if (input$species_input == 'Select species') {
+            if (input$name == "Leaping ostoodle") {
+                lambda_species = 1.702
+            } else if (input$name == "Spotted froggit") {
+                lambda_species = 1.182
+            } else if (input$name == "Lesser humanoid") {
+                lambda_species = 1.333
+            }
+        } else
+            lambda_species = ""
 
         tagList(
             numericInput("lambda", label = "Lambda:", value = lambda_species, step = 0.1, width = "50%", min = 0),
