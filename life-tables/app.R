@@ -33,9 +33,9 @@ ui <- fluidPage(
                    uiOutput("pop_params"),
                    br(),
                    sliderInput("carrying_cap", label = "Carrying capacity:",
-                                value = 10000, min = 1000, max = 100000, step = 1000),
+                                value = 10000, min = 100, max = 100000, step = 100),
                    sliderInput("time_frame", label = "Time frame:",
-                                value = 30, min = 5, max = 100, step = 5)
+                                value = 20, min = 5, max = 100, step = 5)
 
                )
                ),
@@ -441,11 +441,11 @@ server <- function(input, output, session) {
         plot_ly(data_pop_growth(), x = ~time) %>%
             add_lines(y = ~pop_size_exp,
                       name = "Exponential growth",
-                                line = list(color = "purple")) %>%
+                      line = list(color = "purple")) %>%
             layout(title = title_species,
                    xaxis = list(title = "Time"),
                    yaxis = list(title = "Population size"),
-                   legend = list(orientation = 'v'))
+                   showlegend = TRUE)
     })
 
     output$plot_growth_log <- renderPlotly({
@@ -455,10 +455,13 @@ server <- function(input, output, session) {
             add_lines(y = ~pop_size_log,
                       name = "Logarithmic growth",
                       line = list(color = "orange")) %>%
+            add_lines(y = ~input$carrying_cap,
+                      name = "Carrying capacity",
+                      line = list(color = "grey",
+                                  dash = "dash")) %>%
             layout(title = title_species,
                    xaxis = list(title = "Time"),
-                   yaxis = list(title = "Population size"),
-                   legend = list(orientation = 'v'))
+                   yaxis = list(title = "Population size"))
     })
 
 
