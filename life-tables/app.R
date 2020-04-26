@@ -41,6 +41,7 @@ ui <- fluidPage(
                        br(),
                        strong("Population and ecosystem dynamics"),
                        br(),
+                       numericInput("lambda", label = "Lambda:", value = "", step = 0.1, width = "50%", min = 0),
                        uiOutput("pop_params"),
                        br(),
                        sliderInput("carrying_cap", label = "Carrying capacity:",
@@ -54,61 +55,83 @@ ui <- fluidPage(
                tabsetPanel(id = "tabs",
                            tabPanel(
                                "Life table",
-                               column(width = 12,
-                                      br(),
-                                      dataTableOutput("life_table"),
-                                      br(),
-                                      br(),
-                                      tabsetPanel(id = "plots",
-                                                  tabPanel(
-                                                      "Survival",
+                               conditionalPanel(condition = "!output.missing_data_check",
+                                               column(width = 12,
                                                       br(),
-                                                      plotlyOutput("plot_survival")
-                                                  ),
-                                                  tabPanel(
-                                                      "Mortality",
+                                                      dataTableOutput("life_table"),
                                                       br(),
-                                                      plotlyOutput("plot_mortality")
-                                                  ),
-                                                  tabPanel(
-                                                      "Reproduction",
                                                       br(),
-                                                      plotlyOutput("plot_reproductive")
-                                                  )
-                                      ),
-                                      br()
+                                                      tabsetPanel(id = "plots",
+                                                                  tabPanel(
+                                                                      "Survival",
+                                                                      br(),
+                                                                      plotlyOutput("plot_survival")
+                                                                  ),
+                                                                  tabPanel(
+                                                                      "Mortality",
+                                                                      br(),
+                                                                      plotlyOutput("plot_mortality")
+                                                                  ),
+                                                                  tabPanel(
+                                                                      "Reproduction",
+                                                                      br(),
+                                                                      plotlyOutput("plot_reproductive")
+                                                                  )
+                                                      ),
+                                                      br()
+                                               )
+                               ),
+                               conditionalPanel(condition = "output.missing_data_check",
+                                                br(),
+                                                p("Complete the input data for your species.")
                                )
                                ),
                            tabPanel(
                                "Generations",
-                               column(width = 12,
-                                      br(),
-                                      h3("Generational numbers"),
-                                      dataTableOutput("generations"),
-                                      br()
-                               ),
-                               column(width = 4,
-                                      h3("Lamda calculation"),
-                                      uiOutput("starting_pop"),
-                                      br(),
-                                      dataTableOutput("pop_summary"),
-                                      br()
-                               )
+                               conditionalPanel(condition = "!output.missing_data_check",
+                                               column(width = 12,
+                                                      br(),
+                                                      h3("Generational numbers"),
+                                                      dataTableOutput("generations"),
+                                                      br()
+                                               ),
+                                               column(width = 4,
+                                                      h3("Lamda calculation"),
+                                                      uiOutput("starting_pop"),
+                                                      br(),
+                                                      dataTableOutput("pop_summary"),
+                                                      br()
+                                               )
+                           ),
+                           conditionalPanel(condition = "output.missing_data_check",
+                                            br(),
+                                            p("Complete the input data for your species.")
+                           )
                            ),
                            tabPanel(
                                "Population growth",
-                               column(width = 12,
-                                      br(),
-                                      plotlyOutput("plot_growth_exp"),
-                                      br(),
-                                      plotlyOutput("plot_growth_log")
+                               conditionalPanel(condition = "!output.missing_data_check",
+                                               column(width = 12,
+                                                      br(),
+                                                      plotlyOutput("plot_growth_exp"),
+                                                      br(),
+                                                      plotlyOutput("plot_growth_log")
+                                               ),
+                                               column(width = 4,
+                                                      h3("Data"),
+                                                      br(),
+                                                      dataTableOutput("pop_growth"),
+                                                      br()
+                                               )
                                ),
-                               column(width = 4,
-                                      h3("Data"),
-                                      br(),
-                                      dataTableOutput("pop_growth"),
-                                      br()
-                               )
+                               conditionalPanel(condition = "output.missing_data_check",
+                                                br(),
+                                                p("Complete the input data for your species.")
+                               )#,
+                               # conditionalPanel(condition = "!output.missing_data_check & !output.lambda_check",
+                               #                  br(),
+                               #                  p("Fill in the lambda for the species. Look at the table under 'Generations'")
+                               # )
                            )
                            ),
 
@@ -235,7 +258,7 @@ server <- function(input, output, session) {
             n_gens <- nrow(pop_summary)
 
             lambda_diff_imm <- pop_summary[n_gens - 1, "lambda"] - pop_summary[n_gens - 2, "lambda"]
-            print(lambda_diff_imm)
+            # print(lambda_diff_imm)
         }
 
         # print(df_gen)
@@ -282,15 +305,6 @@ server <- function(input, output, session) {
 
 
 # OTHER REACTIVES -----------------------------------------------------------------------------
-    lambda <- reactive({
-        l = data_pop_summary() %>%
-            filter(row_number() == (n() - 1)) %>%
-            select(lambda) %>%
-            pull()
-
-        round(l, digits = 3)
-    })
-
     growth_rate <- reactive({
         input$lambda - 1
     })
@@ -311,16 +325,30 @@ server <- function(input, output, session) {
         }
     })
 
+    # Checks and create output for missing data
     missing_data <- reactive({
         (is.null(input$name_create) | input$name_create == "") ||
             anyNA(input$matrix_data_create) || anyNA(input$matrix_data_start)
     })
 
     output$missing_data_check <- reactive({
-        missing_data()
+        input$species_input == 'Create my own' & missing_data()
     })
 
     outputOptions(output, "missing_data_check", suspendWhenHidden = FALSE)
+    #
+    # # Output for whether lambda is missing or not
+    # output$lambda_check <- reactive({
+    #     if (input$lambda == "") {
+    #         v = FALSE
+    #     } else {
+    #         v = TRUE
+    #     }
+    #     print(v)
+    #     v
+    # })
+    #
+    # outputOptions(output, "lambda_check", suspendWhenHidden = FALSE)
 
 # TABLES --------------------------------------------------------------------------------------
     output$life_table <- renderDataTable({
@@ -548,23 +576,25 @@ server <- function(input, output, session) {
             return()
         }
 
-        if (input$species_input == 'Select species') {
-            if (input$name == "Leaping ostoodle") {
-                lambda_species = 1.702
-            } else if (input$name == "Spotted froggit") {
-                lambda_species = 1.182
-            } else if (input$name == "Lesser humanoid") {
-                lambda_species = 1.333
-            }
-        } else
-            lambda_species = ""
-
         tagList(
-            numericInput("lambda", label = "Lambda:", value = lambda_species, step = 0.1, width = "50%", min = 0),
             p(paste0("Growth rate: ", growth_rate())),
             p(paste0("Population at start: ", starting_pop())),
             p(paste0("Generations to stabilize: ", gen_to_stabilize())),
         )
+    })
+
+    observeEvent(c(input$species_input, input$name), {
+        if (input$species_input == 'Select species') {
+            if (input$name == "Leaping ostoodle") {
+                updateNumericInput(session, "lambda", value = 1.702)
+            } else if (input$name == "Spotted froggit") {
+                updateNumericInput(session, "lambda", value = 1.182)
+            } else if (input$name == "Lesser humanoid") {
+                updateNumericInput(session, "lambda", value = 1.333)
+            }
+        } else {
+            updateNumericInput(session, "lambda", value = "")
+        }
     })
 
     output$starting_pop <- renderUI({
