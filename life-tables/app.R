@@ -18,12 +18,20 @@ ui <- fluidPage(
     fluidPage(
         column(width = 3,
                wellPanel(
-                   strong("Species characteristics"),
-                   textInput("name", label = "Species name:", value = "Jabberwocky"),
+                   strong("Species"),
+                   radioButtons("species_input", label = "", choices = c("Select species", "Create my own"), inline = TRUE),
+                   conditionalPanel("input.species_input == 'Select species'",
+                                    selectInput("name", label = "Species:", choices = c("Spotted froggit", "Leaping ostoodle", "Lesser humanoid"),
+                                                selected = "Leaping ostoodle")
+                                    ),
+                   conditionalPanel("input.species_input == 'Create my own'",
+                                    p("Still coming!")
+                   ),
                    br(),
                    strong("Population and ecosystem dynamics"),
-                   numericInput("lambda", label = "Lambda:", value = 1.205, step = 0.1, width = "50%", min = 0),
+                   br(),
                    uiOutput("pop_params"),
+                   br(),
                    sliderInput("carrying_cap", label = "Carrying capacity:",
                                 value = 10000, min = 1000, max = 100000, step = 1000),
                    sliderInput("time_frame", label = "Time frame:",
@@ -70,6 +78,8 @@ ui <- fluidPage(
                                ),
                                column(width = 4,
                                       h3("Lamda calculation"),
+                                      uiOutput("starting_pop"),
+                                      br(),
                                       dataTableOutput("pop_summary"),
                                       br()
                                )
@@ -79,6 +89,12 @@ ui <- fluidPage(
                                column(width = 12,
                                       br(),
                                       plotlyOutput("plot_growth")
+                               ),
+                               column(width = 4,
+                                      h3("Data"),
+                                      br(),
+                                      dataTableOutput("pop_growth"),
+                                      br()
                                )
                            )
                            ),
@@ -94,9 +110,20 @@ server <- function(input, output, session) {
 # DATA ----------------------------------------------------------------------------------------
     data_life_table <- reactive({
 
-        age_stage = c(0,1,2,3,4,5)
-        num_ind = c(530, 159, 80, 48, 21, 5)
-        num_ind_birth = c(0, 2, 3, 3, 2, 0)
+        if (input$name == "Leaping ostoodle") {
+            age_stage = c(0,1,2,3,4,5,6, 7, 8)
+            num_ind = c(950, 530, 269, 160, 80, 48, 21, 11, 5)
+            num_ind_birth = c(0, 2, 2, 3, 3, 3, 2, 0, 0)
+        } else if (input$name == "Spotted froggit") {
+            age_stage = c(0,1,2,3,4, 5)
+            num_ind = c(700, 55, 25, 15, 10, 3)
+            num_ind_birth = c(0, 10, 10, 5, 0, 0)
+        } else {
+            age_stage = c(0,1,2,3,4,5, 6, 7, 8, 9, 10)
+            num_ind = c(120, 115, 111, 109, 105, 95, 90, 74, 52, 21, 2)
+            num_ind_birth = c(0, 0, 0, 0, 1, 2, 2, 1, 0, 0, 0)
+        }
+
 
         df <- data.frame(age_stage, num_ind, num_ind_birth)
 
@@ -114,60 +141,84 @@ server <- function(input, output, session) {
     })
 
     data_generations <- reactive({
-        # Very manual calculation of set number of generations for now
-        data_life_table() %>%
+        # Different starting populations for different species
+        if (input$name == "Leaping ostoodle") {
+            pop_0 = 20
+            pop_1 = 10
+        } else if (input$name == "Spotted froggit") {
+            pop_0 = 80
+            pop_1 = 20
+        } else {
+            pop_0 = 15
+            pop_1 = 14
+        }
+
+        # Create 3 generations by default
+        df_gen <- data_life_table() %>%
             select(age_stage, num_ind_birth, survivorship) %>%
-            mutate(starting_pop = ifelse(age_stage == 0, 20,
-                                         ifelse(age_stage == 1, 10, 0))) %>%
+            mutate(starting_pop = ifelse(age_stage == 0, pop_0,
+                                         ifelse(age_stage == 1, pop_1, 0))) %>%
             # Generation 1
-            mutate(gen_1 = ifelse(age_stage > 0, lag(starting_pop, default = 0)*lag(survivorship, default = 0), 0)) %>%
-            mutate(gen_1 = ifelse(age_stage == 0, crossprod(x = num_ind_birth, y = gen_1), gen_1)) %>%
+            mutate(gen_01 = ifelse(age_stage > 0, lag(starting_pop, default = 0)*lag(survivorship, default = 0), 0)) %>%
+            mutate(gen_01 = ifelse(age_stage == 0, crossprod(x = num_ind_birth, y = gen_01), gen_01)) %>%
             # Generation 2
-            mutate(gen_2 = ifelse(age_stage > 0, lag(gen_1, default = 0)*lag(survivorship, default = 0), 0)) %>%
-            mutate(gen_2 = ifelse(age_stage == 0, crossprod(x = num_ind_birth, y = gen_2), gen_2))  %>%
+            mutate(gen_02 = ifelse(age_stage > 0, lag(gen_01, default = 0)*lag(survivorship, default = 0), 0)) %>%
+            mutate(gen_02 = ifelse(age_stage == 0, crossprod(x = num_ind_birth, y = gen_02), gen_02))  %>%
             # Generation 3
-            mutate(gen_3 = ifelse(age_stage > 0, lag(gen_2, default = 0)*lag(survivorship, default = 0), 0)) %>%
-            mutate(gen_3 = ifelse(age_stage == 0, crossprod(x = num_ind_birth, y = gen_3), gen_3)) %>%
-            # Generation 4
-            mutate(gen_4 = ifelse(age_stage > 0, lag(gen_3, default = 0)*lag(survivorship, default = 0), 0)) %>%
-            mutate(gen_4 = ifelse(age_stage == 0, crossprod(x = num_ind_birth, y = gen_4), gen_4)) %>%
-            # Generation 5
-            mutate(gen_5 = ifelse(age_stage > 0, lag(gen_4, default = 0)*lag(survivorship, default = 0), 0)) %>%
-            mutate(gen_5 = ifelse(age_stage == 0, crossprod(x = num_ind_birth, y = gen_5), gen_5)) %>%
-            # Generation 6
-            mutate(gen_6 = ifelse(age_stage > 0, lag(gen_5, default = 0)*lag(survivorship, default = 0), 0)) %>%
-            mutate(gen_6 = ifelse(age_stage == 0, crossprod(x = num_ind_birth, y = gen_6), gen_6)) %>%
-            # Generation 7
-            mutate(gen_7 = ifelse(age_stage > 0, lag(gen_6, default = 0)*lag(survivorship, default = 0), 0)) %>%
-            mutate(gen_7 = ifelse(age_stage == 0, crossprod(x = num_ind_birth, y = gen_7), gen_7)) %>%
-            # Generation 8
-            mutate(gen_8 = ifelse(age_stage > 0, lag(gen_7, default = 0)*lag(survivorship, default = 0), 0)) %>%
-            mutate(gen_8 = ifelse(age_stage == 0, crossprod(x = num_ind_birth, y = gen_8), gen_8))
+            mutate(gen_03 = ifelse(age_stage > 0, lag(gen_02, default = 0)*lag(survivorship, default = 0), 0)) %>%
+            mutate(gen_03 = ifelse(age_stage == 0, crossprod(x = num_ind_birth, y = gen_03), gen_03))
+
+        # Get summary of total pops and calculate lambda
+        pop_summary <- df_gen %>%
+            select(-num_ind_birth, -survivorship) %>%
+            pivot_longer(cols = starts_with("gen"), names_to = "gen") %>%
+            group_by(gen) %>%
+            summarise(total_pop = sum(value)) %>%
+            mutate(lambda = round(lead(total_pop, default = 0)/total_pop, 4)) %>%
+            column_to_rownames(var = "gen")
+
+        # Total generations calculated so far
+        n_gens <- nrow(pop_summary)
+
+        # Initial difference in lambda
+        lambda_diff_imm <- pop_summary[n_gens - 1, "lambda"] - pop_summary[n_gens - 2, "lambda"]
+
+        # Add generations until lambda stablizes to within 0.0001
+        while (abs(lambda_diff_imm) > 0.0001) {
+            gen_curr <- paste0("gen_", formatC(n_gens, width = 2, format = "d", flag = 0))
+            gen_add <- paste0("gen_", formatC(n_gens + 1, width = 2, format = "d", flag = 0))
+
+            df_gen <- df_gen %>%
+                mutate(!!gen_add := ifelse(age_stage > 0, lag(!! sym(gen_curr), default = 0)*lag(survivorship, default = 0), 0)) %>%
+                mutate(!!gen_add := ifelse(age_stage == 0, crossprod(x = num_ind_birth, y = !! sym(gen_add)), !! sym(gen_add)))
+
+            pop_summary <- df_gen %>%
+                select(-num_ind_birth, -survivorship) %>%
+                pivot_longer(cols = starts_with("gen"), names_to = "gen") %>%
+                group_by(gen) %>%
+                summarise(total_pop = sum(value)) %>%
+                mutate(lambda = round(lead(total_pop, default = 0)/total_pop, 4)) %>%
+                column_to_rownames(var = "gen")
+
+            n_gens <- nrow(pop_summary)
+
+            lambda_diff_imm <- pop_summary[n_gens - 1, "lambda"] - pop_summary[n_gens - 2, "lambda"]
+            print(lambda_diff_imm)
+        }
+
+        # print(df_gen)
+        df_gen
 
     })
 
     data_pop_summary <- reactive({
         data_generations() %>%
             select(-num_ind_birth, -survivorship) %>%
-            pivot_longer(cols = c("starting_pop", starts_with("gen")), names_to = "gen") %>%
+            pivot_longer(cols = starts_with("gen"), names_to = "gen") %>%
             group_by(gen) %>%
             summarise(total_pop = sum(value)) %>%
             mutate(lambda = lead(total_pop, default = 0)/total_pop) %>%
-            arrange(total_pop) %>%
             column_to_rownames(var = "gen")
-    })
-
-    # lambda <- reactive({
-    #     l = data_pop_summary() %>%
-    #         filter(row_number() == (n() - 1)) %>%
-    #         select(lambda) %>%
-    #         pull()
-    #
-    #     round(l, digits = 3)
-    # })
-
-    growth_rate <- reactive({
-        input$lambda - 1
     })
 
     data_pop_growth <- reactive({
@@ -175,42 +226,66 @@ server <- function(input, output, session) {
         # Get time frame
         time = seq(from = 0, to = input$time_frame)
 
-        print(time)
-
         # Create df
         pop_growth = data.frame(time)
 
         # Get starting pop
-        starting_pop = data_pop_summary() %>% filter(lambda == 0) %>% select(total_pop) %>% pull()
+        starting_pop = starting_pop()
 
         pop_growth = pop_growth %>%
             # Add starting population and exponential
             mutate(pop_size_exp = ifelse(time == 0, starting_pop, starting_pop*exp(time*growth_rate())),
                    pop_size_log = ifelse(time == 0, starting_pop, NA))
 
-        print(pop_growth)
         for (i in 1:(nrow(pop_growth) - 1)) {
             pop_growth <- pop_growth %>%
                 # Add logarithmic row wise through loop
                 mutate(pop_size_log = ifelse(time > 0, input$lambda*lag(pop_size_log)*((input$carrying_cap - lag(pop_size_log))/input$carrying_cap), pop_size_log))
         }
 
-        print(pop_growth)
-#
-#         pop_growth <- pop_growth %>%
-#             pivot_longer(cols = c("pop_size_exp", "pop_size_log"))
-        print(head(pop_growth, n = 40))
         pop_growth
+    })
+
+
+# OTHER REACTIVES -----------------------------------------------------------------------------
+    lambda <- reactive({
+        l = data_pop_summary() %>%
+            filter(row_number() == (n() - 1)) %>%
+            select(lambda) %>%
+            pull()
+
+        round(l, digits = 3)
+    })
+
+    growth_rate <- reactive({
+        input$lambda - 1
+    })
+
+    gen_to_stabilize <- reactive({
+        nrow(data_pop_summary())
+    })
+
+    starting_pop <- reactive({
+        sum(data_generations()$starting_pop)
+    })
+
+    species_name <- reactive({
+        # if (input$species_input == 'Select species') {
+            input$name
+        # } else {
+        #     input$name_create
+        # }
     })
 
 # TABLES --------------------------------------------------------------------------------------
     output$life_table <- renderDataTable({
         datatable(data_life_table(),
+                  extensions = 'Buttons',
                   selection = "none",
                   rownames = FALSE,
                   colnames = c("Age/stage </br>x",
                                "Individuals at time x </br> N<sub>x</sub>",
-                               "Individuals born at time x </br>b<sub>x</sub>",
+                               "Offspring from one individual at time x </br>b<sub>x</sub>",
                                "Probability at birth of surviving to time x </br>I<sub>x</sub>",
                                "Age specific mortality </br>(N<sub>x</sub>-N<sub>x+1</sub>) </br>d<sub>x</sub>",
                                "Age specific mortality rate </br>(d<sub>x</sub>/N<sub>x</sub>) </br>q<sub>x</sub>",
@@ -220,7 +295,13 @@ server <- function(input, output, session) {
                   # editable = list(target = "cell", disable = list(columns = c(0, 3, 4, 5, 6, 7))),
                   options = list("searching" = FALSE,
                                  "paging" = FALSE,
-                                 "ordering" = FALSE
+                                 "ordering" = FALSE,
+                                 dom = 'Bfrtip',
+                                 buttons =
+                                     list(list(
+                                         extend = 'collection',
+                                         buttons = c('csv', 'excel'),
+                                         text = 'Download'))
                                  )
         ) %>%
         formatStyle(
@@ -238,26 +319,25 @@ server <- function(input, output, session) {
     })
 
     output$generations <- renderDataTable({
-        datatable(data_generations(),
-                  selection = "none",
+        data_generations() %>%
+            rename("Age/stage </br>x" = age_stage,
+                   "Offspring from individual </br>b<sub>x</sub>" = num_ind_birth,
+                   "Survivorship </br>(1-q<sub>x</sub>) </br>s<sub>x</sub>" = survivorship,
+                   "Starting population" = starting_pop) %>%
+        datatable(selection = "none",
+                  extensions = 'Buttons',
                   rownames = FALSE,
-                  colnames = c("Age/stage </br>x",
-                               "Reproductive rate </br>I<sub>x</sub>b<sub>x</sub>",
-                               "Survivorship </br>(1-q<sub>x</sub>) </br>s<sub>x</sub>",
-                               "Starting population",
-                               "Gen 1",
-                               "Gen 2",
-                               "Gen 3",
-                               "Gen 4",
-                               "Gen 5",
-                               "Gen 6",
-                               "Gen 7",
-                               "Gen 8"
-                               ),
                   escape = FALSE,
                   options = list("searching" = FALSE,
                                  "paging" = FALSE,
-                                 "ordering" = FALSE)
+                                 "ordering" = FALSE,
+                                 "scrollX" = TRUE,
+                                 dom = 'Bfrtip',
+                                 buttons =
+                                     list(list(
+                                         extend = 'collection',
+                                         buttons = c('csv', 'excel'),
+                                         text = 'Download')))
         ) %>%
             formatRound(columns = 0:-1)
     })
@@ -270,15 +350,46 @@ server <- function(input, output, session) {
                   ),
                   escape = FALSE,
                   options = list("searching" = FALSE,
-                                 "paging" = FALSE,
+                                 "paging" = TRUE,
                                  "ordering" = FALSE)
         ) %>%
-            formatRound(columns = 0) %>%
-            formatRound(columns = 1, digits = 3)
+            formatRound(columns = 1) %>%
+            formatRound(columns = 2, digits = 3)
+    })
+
+    output$pop_growth <- renderDataTable({
+        datatable(data_pop_growth(),
+                  extensions = 'Buttons',
+                  selection = "none",
+                  rownames = FALSE,
+                  colnames = c("Time",
+                                "Exponential growth",
+                               "Logarithmic growth"
+                  ),
+                  escape = FALSE,
+                  options = list("searching" = FALSE,
+                                 "paging" = TRUE,
+                                 dom = 'Bfrtip',
+                                 buttons =
+                                     list(list(
+                                         extend = 'collection',
+                                         buttons = c('csv', 'excel'),
+                                         text = 'Download')))
+        ) %>%
+            formatRound(columns = 2:3, digits = 1) %>%
+            formatStyle(
+                'pop_size_exp',
+                backgroundColor = "#f6edff"
+            ) %>%
+            formatStyle(
+                'pop_size_log',
+                backgroundColor = "#ffedd6"
+            )
     })
 
 # PLOTS ---------------------------------------------------------------------------------------
     output$plot_survival <- renderPlotly({
+        title_species = paste0("Probability at birth of surviving to time x for ", species_name())
 
         (ggplot(data_life_table(), aes(x = age_stage, y = prob_survival, group = 1,
                                     text = paste0("Age/stage: ", age_stage, "</br></br>",
@@ -286,37 +397,43 @@ server <- function(input, output, session) {
             geom_line(color = "mediumblue") +
             geom_point(color = "mediumblue") +
             scale_y_continuous(trans = 'log10') +
-            labs(title = "Probability at birth of surviving to time x",
+            labs(title = title_species,
                  x = "Age/stage", y = "Probability (log scale)") +
             theme_classic()) %>%
             ggplotly(tooltip = "text")
     })
 
     output$plot_mortality <- renderPlotly({
+        title_species = paste0("Age/stage specific mortality rate for ", species_name())
+
         (ggplot(data_life_table(), aes(x = age_stage, y = age_mortality_rate, group = 1,
                                        text = paste0("Age/stage: ", age_stage, "</br></br>",
                                                      "Mortality rate: ", age_reproductive_rate))) +
              geom_line(color = "orangered") +
              geom_point(color = "orangered") +
-             labs(title = "Age/stage specific mortality rate",
+             labs(title = title_species,
                   x = "Age/stage", y = "Rate") +
              theme_classic()) %>%
             ggplotly(tooltip = "text")
     })
 
     output$plot_reproductive <- renderPlotly({
+        title_species = paste0("Age/stage specific reproductive rate for ", species_name())
+
         (ggplot(data_life_table(), aes(x = age_stage, y = age_reproductive_rate, group = 1,
                                        text = paste0("Age/stage: ", age_stage, "</br></br>",
                                                      "Reproductive rate: ", age_reproductive_rate))) +
              geom_line(color = "forestgreen") +
              geom_point(color = "forestgreen") +
-             labs(title = "Age/stage specific reproductive rate",
+             labs(title = title_species,
                   x = "Age/stage", y = "Rate") +
              theme_classic()) %>%
             ggplotly(tooltip = "text")
     })
 
     output$plot_growth <- renderPlotly({
+        title_species = paste0("Population growth over time for ", species_name())
+
         plot_ly(data_pop_growth(), x = ~time) %>%
             add_lines(y = ~pop_size_exp,
                       name = "Exponential growth",
@@ -324,7 +441,7 @@ server <- function(input, output, session) {
             add_lines(y = ~pop_size_log,
                       name = "Logarithmic growth",
                       line = list(color = "orange")) %>%
-            layout(title = "Population growth over time",
+            layout(title = title_species,
                    xaxis = list(title = "Time"),
                    yaxis = list(title = "Population size"),
                    legend = list(orientation = 'h'))
@@ -333,13 +450,27 @@ server <- function(input, output, session) {
 
 # RENDER UI -----------------------------------------------------------------------------------
     output$pop_params <- renderUI({
+        if (input$name == "Leaping ostoodle") {
+            lambda_species = 1.702
+        } else if (input$name == "Spotted froggit") {
+            lambda_species = 1.182
+        } else if (input$name == "Lesser humanoid") {
+            lambda_species = 1.333
+        }
+
         tagList(
-            p("Growth rate:"),
-            p(growth_rate())
+            numericInput("lambda", label = "Lambda:", value = lambda_species, step = 0.1, width = "50%", min = 0),
+            p(paste0("Growth rate: ", growth_rate())),
+            p(paste0("Population at start: ", starting_pop())),
+            p(paste0("Generations to stabilize: ", gen_to_stabilize())),
         )
     })
 
-
+    output$starting_pop <- renderUI({
+        tagList(
+            p(strong(paste0("Total population at start: ", starting_pop())))
+        )
+    })
 
 }
 
