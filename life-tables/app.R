@@ -9,7 +9,8 @@ library(shinythemes)
 library(shinyMatrix)
 library(shinyjs)
 
-# Define UI for application that draws a histogram
+
+# UI ------------------------------------------------------------------------------------------
 ui <- fluidPage(
     useShinyjs(),
 
@@ -110,7 +111,7 @@ ui <- fluidPage(
                            ),
                            tabPanel(
                                "Population growth",
-                               conditionalPanel(condition = "!output.missing_data_check",
+                               conditionalPanel(condition = "!output.missing_data_check & output.lambda_check",
                                                column(width = 12,
                                                       br(),
                                                       plotlyOutput("plot_growth_exp"),
@@ -127,11 +128,11 @@ ui <- fluidPage(
                                conditionalPanel(condition = "output.missing_data_check",
                                                 br(),
                                                 p("Complete the input data for your species.")
-                               )#,
-                               # conditionalPanel(condition = "!output.missing_data_check & !output.lambda_check",
-                               #                  br(),
-                               #                  p("Fill in the lambda for the species. Look at the table under 'Generations'")
-                               # )
+                               ),
+                               conditionalPanel(condition = "!output.lambda_check",
+                                                br(),
+                                                p("Fill in the lambda for the species. Look at the table under 'Generations' for when the value stabilizes indicating growth rate has stabilized.")
+                               )
                            )
                            ),
 
@@ -139,7 +140,8 @@ ui <- fluidPage(
     )
 )
 
-# Define server logic required to draw a histogram
+
+# SERVER --------------------------------------------------------------------------------------
 server <- function(input, output, session) {
 
 # DATA ----------------------------------------------------------------------------------------
@@ -336,19 +338,19 @@ server <- function(input, output, session) {
     })
 
     outputOptions(output, "missing_data_check", suspendWhenHidden = FALSE)
-    #
-    # # Output for whether lambda is missing or not
-    # output$lambda_check <- reactive({
-    #     if (input$lambda == "") {
-    #         v = FALSE
-    #     } else {
-    #         v = TRUE
-    #     }
-    #     print(v)
-    #     v
-    # })
-    #
-    # outputOptions(output, "lambda_check", suspendWhenHidden = FALSE)
+
+    # Output for whether lambda is missing or not
+    output$lambda_check <- reactive({
+        if (is.na(input$lambda)) {
+            v = FALSE
+        } else {
+            v = TRUE
+        }
+        print(v)
+        v
+    })
+
+    outputOptions(output, "lambda_check", suspendWhenHidden = FALSE)
 
 # TABLES --------------------------------------------------------------------------------------
     output$life_table <- renderDataTable({
@@ -439,7 +441,7 @@ server <- function(input, output, session) {
                                  "ordering" = FALSE)
         ) %>%
             formatRound(columns = 1) %>%
-            formatRound(columns = 2, digits = 3)
+            formatRound(columns = 2, digits = 4)
     })
 
     output$pop_growth <- renderDataTable({
