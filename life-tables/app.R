@@ -96,7 +96,7 @@ ui <- fluidPage(
                                                       br()
                                                ),
                                                column(width = 4,
-                                                      h3("Lamda calculation"),
+                                                      h3("Lambda calculation"),
                                                       uiOutput("starting_pop"),
                                                       br(),
                                                       dataTableOutput("pop_summary"),
